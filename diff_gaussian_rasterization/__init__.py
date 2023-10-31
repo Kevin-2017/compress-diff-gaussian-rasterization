@@ -16,15 +16,6 @@ from . import _C
 # modification by VITA, Kevin 
 # added the f_count, a count flag to count the number of time a guassian is activated.  
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-   if (code != cudaSuccess) 
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
 
 
 def cpu_deep_copy_tuple(input_tuple):
@@ -129,8 +120,8 @@ class _RasterizeGaussians(torch.autograd.Function):
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
         ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer)
-        ctx.count = gaussians_count
-        ctx.important_score = important_score
+        # ctx.count = gaussians_count
+        # ctx.important_score = important_score
         
         if f_count: 
             return gaussians_count, important_score, color, radii 

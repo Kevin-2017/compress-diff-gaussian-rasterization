@@ -473,7 +473,8 @@ renderCUDA_count(
 
 			//add count 
 			gaussian_count[collected_id[j]]++;
-			important_score[collected_id[j]] += con_o.w; //opacity
+			important_score[collected_id[j]] += alpha; //opacity
+			//use alpha 
 
 			// Eq. (3) from 3D Gaussian splatting paper.
 			for (int ch = 0; ch < CHANNELS; ch++)
