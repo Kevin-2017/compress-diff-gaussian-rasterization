@@ -32,9 +32,9 @@ def rasterize_gaussians(
     rotations,
     cov3Ds_precomp,
     raster_settings,
-    f_count = False
 ):
-    return _RasterizeGaussians.apply(
+    if raster_settings.f_count:
+        return _RasterizeGaussians.forward_count(
         means3D,
         means2D,
         sh,
@@ -44,8 +44,20 @@ def rasterize_gaussians(
         rotations,
         cov3Ds_precomp,
         raster_settings,
-        f_count
+
     )
+    return _RasterizeGaussians.apply(
+    means3D,
+    means2D,
+    sh,
+    colors_precomp,
+    opacities,
+    scales,
+    rotations,
+    cov3Ds_precomp,
+    raster_settings,
+)
+    
 
 class _RasterizeGaussians(torch.autograd.Function):
     @staticmethod
@@ -60,7 +72,6 @@ class _RasterizeGaussians(torch.autograd.Function):
         rotations,
         cov3Ds_precomp,
         raster_settings,
-        f_count = False
     ):
 
         # Restructure arguments the way that the C++ lib expects them
@@ -88,8 +99,8 @@ class _RasterizeGaussians(torch.autograd.Function):
         gaussians_count, important_score, num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = None, None, None, None, None, None, None, None
         # Invoke C++/CUDA rasterizer
         # TODO(Kevin): pass the count in, but the output include a count list 
-        if f_count:
-            args = args + (f_count,)
+        if raster_settings.f_count:
+            args = args + (raster_settings.f_count,)
             if raster_settings.debug:
                 cpu_args = cpu_deep_copy_tuple(args) # Copy them before they can be corrupted
                 try:
@@ -114,8 +125,6 @@ class _RasterizeGaussians(torch.autograd.Function):
                     raise ex
             else:
                 num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
-        
-
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
@@ -123,9 +132,61 @@ class _RasterizeGaussians(torch.autograd.Function):
         # ctx.count = gaussians_count
         # ctx.important_score = important_score
         
-        if f_count: 
+        if raster_settings.f_count: 
             return gaussians_count, important_score, color, radii 
         return color, radii
+    
+    @staticmethod
+    def forward_count(
+        means3D,
+        means2D,
+        sh,
+        colors_precomp,
+        opacities,
+        scales,
+        rotations,
+        cov3Ds_precomp,
+        raster_settings,
+    ):
+        assert(raster_settings.f_count)
+        # Restructure arguments the way that the C++ lib expects them
+        args = (
+            raster_settings.bg, 
+            means3D,
+            colors_precomp,
+            opacities,
+            scales,
+            rotations,
+            raster_settings.scale_modifier,
+            cov3Ds_precomp,
+            raster_settings.viewmatrix,
+            raster_settings.projmatrix,
+            raster_settings.tanfovx,
+            raster_settings.tanfovy,
+            raster_settings.image_height,
+            raster_settings.image_width,
+            sh,
+            raster_settings.sh_degree,
+            raster_settings.campos,
+            raster_settings.prefiltered,
+            raster_settings.debug,
+            raster_settings.f_count
+        )
+        # gaussians_count, important_score, num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = None, None, None, None, None, None, None, None
+        # Invoke C++/CUDA rasterizer
+        # TODO(Kevin): pass the count in, but the output include a count list 
+        if raster_settings.debug:
+            cpu_args = cpu_deep_copy_tuple(args) # Copy them before they can be corrupted
+            try:
+                gaussians_count, important_score, num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.count_gaussians(*args)
+            except Exception as ex:
+                torch.save(cpu_args, "snapshot_fw.dump")
+                print("\nAn error occured in forward. Please forward snapshot_fw.dump for debugging.")
+                raise ex
+        else:
+            gaussians_count, important_score, num_rendered, color, radii, geomBuffer, binningBuffer, imgBuffer = _C.count_gaussians(*args)
+                   
+        return gaussians_count, important_score, color, radii 
 
     @staticmethod
     def backward(ctx, grad_out_color, _):
@@ -197,6 +258,7 @@ class GaussianRasterizationSettings(NamedTuple):
     campos : torch.Tensor
     prefiltered : bool
     debug : bool
+    f_count : bool
 
 class GaussianRasterizer(nn.Module):
     def __init__(self, raster_settings):
@@ -248,7 +310,7 @@ class GaussianRasterizer(nn.Module):
             raster_settings, 
         )
     #TODO(Kevin add counter version of forward)
-    def forward_counter(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward_count(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
         
         raster_settings = self.raster_settings
 
@@ -281,6 +343,5 @@ class GaussianRasterizer(nn.Module):
             rotations,
             cov3D_precomp,
             raster_settings, 
-            f_count=True
         ) 
 
