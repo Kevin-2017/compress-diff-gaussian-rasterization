@@ -17,4 +17,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("rasterize_gaussians_backward", &RasterizeGaussiansBackwardCUDA);
   m.def("mark_visible", &markVisible);
   m.def("count_gaussians", &CountGaussiansCUDA);
+  m.def("rasterize_gaussians_indexed", &RasterizeGaussiansIndexedCUDA);
+  m.def("rasterize_gaussians_backward_indexed", &RasterizeGaussiansBackwardIndexedCUDA);
+
 }
