@@ -471,7 +471,7 @@ renderCUDA_count(
 				continue;
 			}
 			gaussian_count[collected_id[j]]++;
-			important_score[collected_id[j]] += con_o.w; //opacity
+			important_score[collected_id[j]] += con_o.w * T; //opacity
 
 			//add count 
 			
